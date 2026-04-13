@@ -482,10 +482,15 @@ input[type=range]::-moz-range-thumb {
             <input class="finput" type="number" id="width" value="5.00" step="0.50" min="0" oninput="calc()" />
           </div>
           <div class="fgrp">
-            <div class="flabel" id="strike-label">SHORT STRIKE</div>
-            <input class="finput" type="number" id="strike" value="40.00" step="0.50" oninput="calc()" />
-          </div>
-          <div class="fgrp">
+  <div class="flabel" id="strike-label">SHORT STRIKE</div>
+  <div style="display:flex;gap:4px;">
+    <input class="finput" type="number" id="strike" value="40.00" step="0.50" oninput="calc()" style="flex:1;" />
+    <button id="cp-toggle" onclick="toggleCP()" 
+      style="background:#000080;color:#fff;border-top:2px solid #fff;border-left:2px solid #fff;border-right:2px solid #808080;border-bottom:2px solid #808080;font-family:Arial;font-size:10px;font-weight:bold;padding:0 6px;cursor:pointer;width:36px;">
+      CALL
+    </button>
+  </div>
+</div>
             <div class="flabel">DTE (DAYS)</div>
             <input class="finput" type="number" id="dte" value="71" step="1" min="1" oninput="calc()" />
           </div>
