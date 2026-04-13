@@ -669,6 +669,24 @@ input[type=range]::-moz-range-thumb {
   }
 
   // MODE
+  let cpOverride = null; // null = auto-detect, 'call' or 'put' = manual
+
+function toggleCP() {
+  const btn = document.getElementById('cp-toggle');
+  if (cpOverride === null) {
+    // was auto, go to manual call
+    const S = getS();
+    const strike = parseFloat(document.getElementById('strike').value) || 40;
+    cpOverride = strike > S ? 'put' : 'call'; // flip from auto
+  } else if (cpOverride === 'call') {
+    cpOverride = 'put';
+  } else {
+    cpOverride = null; // back to auto
+  }
+  btn.textContent = cpOverride === null ? 'AUTO' : cpOverride.toUpperCase();
+  btn.style.background = cpOverride === 'put' ? '#8b0000' : '#000080';
+  calc();
+}
   function setMode(m) {
     mode = m;
     document.querySelectorAll('.mode-card').forEach((c,i) => {
@@ -678,7 +696,15 @@ input[type=range]::-moz-range-thumb {
     document.getElementById('prem-label').textContent = m === 'credit' ? 'CREDIT ($)' : 'PREMIUM ($)';
     document.getElementById('width-label').textContent = m === 'naked' ? 'MAX LOSS CAP' : 'WIDTH ($)';
     document.getElementById('strike-label').textContent = m === 'credit' ? 'SHORT STRIKE' : m === 'debit' ? 'LONG STRIKE' : 'STRIKE';
-    if (m === 'naked') { wEl.value = 0; wEl.disabled = true; } else { wEl.disabled = false; }
+    if (m === 'naked') {
+  wEl.value = 0;
+  wEl.disabled = true;
+} else {
+  wEl.disabled = false;
+  if (!wEl.value || parseFloat(wEl.value) === 0) {
+    wEl.value = '5.00';
+  }
+}
     calc();
   }
 
@@ -755,25 +781,61 @@ calc();
     const rfr = parseFloat(document.getElementById('rfr').value)/100;
     const contracts = Math.max(1, parseInt(document.getElementById('contracts').value)||1);
     const S = getS(); const T = dte/365;
-    const cp = strike > S ? 'call' : 'put';
+ const autoCP = strike > S ? 'call' : 'put';
+const cp = cpOverride || autoCP;
 
-    let maxGain, maxLoss, pop;
-    if (mode === 'credit') {
-      maxGain = premium; maxLoss = Math.max(0, width-premium);
-      pop = cp==='call' ? 1-bsProb(S,strike,T,rfr,iv,'call') : bsProb(S,strike,T,rfr,iv,'put');
-    } else if (mode === 'debit') {
-      maxGain = Math.max(0, width-premium); maxLoss = premium;
-      pop = cp==='call' ? bsProb(S,strike+premium,T,rfr,iv,'call') : 1-bsProb(S,strike-premium,T,rfr,iv,'put');
-    } else {
-      maxGain = null; maxLoss = premium;
-      pop = cp==='call' ? bsProb(S,strike+premium,T,rfr,iv,'call') : 1-bsProb(S,strike-premium,T,rfr,iv,'put');
-    }
+// Update toggle button to reflect current state
+const cpBtn = document.getElementById('cp-toggle');
+if (cpBtn) {
+  cpBtn.textContent = cpOverride === null ? autoCP.toUpperCase() : cpOverride.toUpperCase();
+  cpBtn.style.background = cp === 'put' ? '#8b0000' : '#000080';
+}
+
+let maxGain, maxLoss, pop;
+if (mode === 'credit') {
+  maxGain = premium;
+  maxLoss = Math.max(0, width - premium);
+  if (cp === 'call') {
+    // Credit call spread: profit if stock stays BELOW short strike
+    // Higher IV = stock can move more = lower POP (correct)
+    pop = 1 - bsProb(S, strike, T, rfr, iv, 'call');
+  } else {
+    // Credit put spread: profit if stock stays ABOVE short strike
+    // Higher IV = lower POP (correct)
+    pop = bsProb(S, strike, T, rfr, iv, 'put');
+  }
+} else if (mode === 'debit') {
+  maxGain = Math.max(0, width - premium);
+  maxLoss = premium;
+  if (cp === 'call') {
+    // Debit call spread: profit if stock goes ABOVE breakeven
+    // Higher IV = more chance of hitting target = higher POP (correct)
+    pop = 1 - bsProb(S, strike + premium, T, rfr, iv, 'call');
+  } else {
+    // Debit put spread: profit if stock goes BELOW breakeven
+    pop = bsProb(S, strike - premium, T, rfr, iv, 'put');
+  }
+} else {
+  // Single leg
+  maxGain = null;
+  maxLoss = premium;
+  if (cp === 'call') {
+    pop = 1 - bsProb(S, strike + premium, T, rfr, iv, 'call');
+  } else {
+    pop = bsProb(S, strike - premium, T, rfr, iv, 'put');
+  }
+}
 
     const pLoss = 1-pop;
     const ev = maxGain!==null ? (pop*maxGain - pLoss*maxLoss) : (pop*premium*2 - pLoss*maxLoss);
     const pctW = width>0 ? (premium/width*100) : null;
     const buf = Math.abs(strike-S);
-    const be = mode==='credit' ? strike+(cp==='call'?1:-1)*premium : null;
+    let be = null;
+if (mode === 'credit') {
+  be = cp === 'call' ? strike + premium : strike - premium;
+} else if (mode === 'debit') {
+  be = cp === 'call' ? strike + premium : strike - premium;
+}
 
     // readouts
     document.getElementById('rd-mg').textContent = maxGain!==null ? fmtD(maxGain*100) : 'UNLIM';
