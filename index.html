@@ -711,23 +711,23 @@ async function fetchPrice() {
       return;
     }
 
-    livePrice = q.price;
-    const chgPct = q.change_pct || 0;
-    const cls = chgPct >= 0 ? 'pos' : 'neg';
-    const sign = chgPct >= 0 ? '+' : '';
-    const state = q.market_state !== 'REGULAR' ? ' [' + q.market_state + ']' : '';
+   livePrice = q.price;
+const chgPct = q.change_pct || 0;
+const cls = chgPct >= 0 ? 'pos' : 'neg';
+const sign = chgPct >= 0 ? '+' : '';
+const state = q.market_state !== 'REGULAR' ? ' [' + q.market_state + ']' : '';
 
-    document.getElementById('price-line').innerHTML =
-      `<span class="price-display">${t} $${livePrice.toFixed(2)}</span>` +
-      `<span class="price-chg ${cls}" style="font-family:Courier New;font-size:11px;font-weight:bold;margin-left:6px;">` +
-        `${sign}${chgPct.toFixed(2)}%` +
-      `</span>` +
-      `<span style="font-family:Arial;font-size:10px;color:#808080;margin-left:8px;">` +
-        `H:$${q.high.toFixed(2)}  L:$${q.low.toFixed(2)}  PC:$${q.prev_close.toFixed(2)}${state}` +
-      `</span>`;
+document.getElementById('price-line').innerHTML =
+  `<span class="price-display">${t} $${livePrice.toFixed(2)}</span>` +
+  `<span class="price-chg ${cls}" style="font-family:Courier New;font-size:11px;font-weight:bold;margin-left:6px;">` +
+    `${sign}${chgPct.toFixed(2)}%` +
+  `</span>` +
+  `<span style="font-family:Arial;font-size:10px;color:#808080;margin-left:8px;">` +
+    `${q.name}${state}` +
+  `</span>`;
 
-    setStatus(`${t} — ${q.name} — $${livePrice.toFixed(2)} — adjust parameters to model position`);
-    calc();
+setStatus(`${t} loaded — $${livePrice.toFixed(2)} — adjust parameters to model position`);
+calc();
 
   } catch(e) {
     setStatus('Connection error — check your internet and retry');
