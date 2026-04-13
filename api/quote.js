@@ -1,6 +1,6 @@
 const cache = {};
 const CACHE_TTL = 15000;
-const SCRAPER_KEY = process.env.SCRAPER_KEY || 'e101cc35c811bad78f6c86055dd9b5ea';
+const TWELVE_KEY = process.env.TWELVE_KEY || '700cce7e4a3c42678f223474057380b6';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,32 +16,31 @@ export default async function handler(req, res) {
     return res.json(cached.data);
   }
 
-  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${key}&fields=regularMarketPrice,regularMarketChangePercent,longName,shortName,marketState`;
-  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_KEY}&url=${encodeURIComponent(yahooUrl)}`;
-
   try {
-    const r = await fetch(scraperUrl);
+    const r = await fetch(
+      `https://api.twelvedata.com/quote?symbol=${key}&apikey=${TWELVE_KEY}`
+    );
+
     if (!r.ok) return res.status(502).json({ error: 'Data unavailable' });
 
-    const json = await r.json();
-    const quote = json?.quoteResponse?.result?.[0];
+    const q = await r.json();
 
-    if (!quote || !quote.regularMarketPrice) {
+    if (q.status === 'error' || !q.close) {
       return res.status(404).json({ error: 'Symbol not found' });
     }
 
     const data = {
-      price:        quote.regularMarketPrice,
-      change_pct:   quote.regularMarketChangePercent || 0,
-      name:         quote.longName || quote.shortName || key,
-      market_state: quote.marketState || 'CLOSED'
+      price:        parseFloat(q.close),
+      change_pct:   parseFloat(q.percent_change) || 0,
+      name:         q.name || key,
+      market_state: q.is_market_open ? 'REGULAR' : 'CLOSED'
     };
 
     cache[key] = { data, ts: Date.now() };
     return res.json(data);
 
   } catch(e) {
-    console.error('ScraperAPI error:', e);
+    console.error('TwelveData error:', e);
     return res.status(500).json({ error: 'Server error — try again' });
   }
 }
