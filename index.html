@@ -943,6 +943,9 @@ if (mode === 'credit') {
     livePrice = null;
     document.getElementById('price-line').innerHTML = '';
     setStatus('RESET — enter ticker and press GO');
+    cpOverride = null;
+const cpBtn = document.getElementById('cp-toggle');
+if (cpBtn) { cpBtn.textContent = 'CALL'; cpBtn.style.background = '#000080'; }
     calc();
   }
 
