@@ -1,7 +1,6 @@
 const cache = {};
 const CACHE_TTL = 15000;
-
-const FMP_KEY = process.env.FMP_KEY;
+const FMP_KEY = process.env.FMP_KEY || 'xh5ngFkgupcqQ4d7ZPAZh9imAz8M8mHX';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -19,13 +18,14 @@ export default async function handler(req, res) {
 
   try {
     const r = await fetch(
-      `https://financialmodelingprep.com/api/v3/quote/${key}?apikey=${FMP_KEY}`
+      `https://financialmodelingprep.com/stable/quote?symbol=${key}&apikey=${FMP_KEY}`
     );
 
     if (!r.ok) return res.status(502).json({ error: 'Data unavailable' });
 
     const json = await r.json();
-    const quote = json?.[0];
+
+    const quote = Array.isArray(json) ? json[0] : json;
 
     if (!quote || !quote.price) {
       return res.status(404).json({ error: 'Symbol not found' });
