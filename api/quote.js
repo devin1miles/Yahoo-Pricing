@@ -1,6 +1,6 @@
 const cache = {};
 const CACHE_TTL = 15000;
-const FMP_KEY = process.env.FMP_KEY || 'xh5ngFkgupcqQ4d7ZPAZh9imAz8M8mHX';
+const SCRAPER_KEY = process.env.SCRAPER_KEY || 'e101cc35c811bad78f6c86055dd9b5ea';
 
 export default async function handler(req, res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -16,72 +16,32 @@ export default async function handler(req, res) {
     return res.json(cached.data);
   }
 
-  // Try FMP first
-  try {
-    const r = await fetch(
-      `https://financialmodelingprep.com/stable/quote?symbol=${key}&apikey=${FMP_KEY}`
-    );
-    if (r.ok) {
-      const json = await r.json();
-      const quote = Array.isArray(json) ? json[0] : json;
-      if (quote && quote.price) {
-        const data = {
-          price:        quote.price,
-          change:       quote.change || 0,
-          change_pct:   quote.changesPercentage || 0,
-          high:         quote.dayHigh || 0,
-          low:          quote.dayLow || 0,
-          prev_close:   quote.previousClose || 0,
-          volume:       quote.volume || 0,
-          name:         quote.name || key,
-          market_state: quote.isActivelyTrading ? 'REGULAR' : 'CLOSED'
-        };
-        cache[key] = { data, ts: Date.now() };
-        return res.json(data);
-      }
-    }
-  } catch(e) {
-    console.error('FMP error:', e);
-  }
+  const yahooUrl = `https://query1.finance.yahoo.com/v8/finance/quote?symbols=${key}&fields=regularMarketPrice,regularMarketChangePercent,longName,shortName,marketState`;
+  const scraperUrl = `http://api.scraperapi.com?api_key=${SCRAPER_KEY}&url=${encodeURIComponent(yahooUrl)}`;
 
-  // Fallback to Yahoo Finance
   try {
-    const r = await fetch(
-      `https://query2.finance.yahoo.com/v8/finance/quote?symbols=${key}`,
-      {
-        headers: {
-          'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-          'Accept': 'application/json',
-          'Accept-Language': 'en-US,en;q=0.9',
-          'Accept-Encoding': 'gzip, deflate, br',
-          'Origin': 'https://finance.yahoo.com',
-          'Referer': 'https://finance.yahoo.com',
-        }
-      }
-    );
-    if (r.ok) {
-      const json = await r.json();
-      const quote = json?.quoteResponse?.result?.[0];
-      if (quote && quote.regularMarketPrice) {
-        const data = {
-          price:        quote.regularMarketPrice,
-          change:       quote.regularMarketChange || 0,
-          change_pct:   quote.regularMarketChangePercent || 0,
-          high:         quote.regularMarketDayHigh || 0,
-          low:          quote.regularMarketDayLow || 0,
-          prev_close:   quote.regularMarketPreviousClose || 0,
-          volume:       quote.regularMarketVolume || 0,
-          name:         quote.longName || quote.shortName || key,
-          market_state: quote.marketState || 'CLOSED'
-        };
-        cache[key] = { data, ts: Date.now() };
-        return res.json(data);
-      }
-    }
-  } catch(e) {
-    console.error('Yahoo fallback error:', e);
-  }
+    const r = await fetch(scraperUrl);
+    if (!r.ok) return res.status(502).json({ error: 'Data unavailable' });
 
-  // Both failed
-  return res.status(502).json({ error: 'Data unavailable — try again shortly' });
+    const json = await r.json();
+    const quote = json?.quoteResponse?.result?.[0];
+
+    if (!quote || !quote.regularMarketPrice) {
+      return res.status(404).json({ error: 'Symbol not found' });
+    }
+
+    const data = {
+      price:        quote.regularMarketPrice,
+      change_pct:   quote.regularMarketChangePercent || 0,
+      name:         quote.longName || quote.shortName || key,
+      market_state: quote.marketState || 'CLOSED'
+    };
+
+    cache[key] = { data, ts: Date.now() };
+    return res.json(data);
+
+  } catch(e) {
+    console.error('ScraperAPI error:', e);
+    return res.status(500).json({ error: 'Server error — try again' });
+  }
 }
