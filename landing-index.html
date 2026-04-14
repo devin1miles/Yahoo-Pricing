@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>OPTS// Position Probability Engine</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:     #a0a8b0;
+  --panel:  #c0c0c0;
+  --navy:   #000080;
+  --accent: #0078d7;
+  --white:  #ffffff;
+  --dim:    #808080;
+  --dark:   #404040;
+}
+
+html, body {
+  height: 100%;
+  background: var(--bg);
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+  cursor: default;
+  user-select: none;
+}
+
+/* desktop texture */
+body::before {
+  content: '';
+  position: fixed; inset: 0;
+  background-image:
+    radial-gradient(circle at 1px 1px, rgba(255,255,255,0.15) 1px, transparent 0);
+  background-size: 4px 4px;
+  pointer-events: none;
+}
+
+/* centered window */
+.window {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(680px, 92vw);
+  background: var(--panel);
+  border-top: 2px solid var(--white);
+  border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dim);
+  border-bottom: 2px solid var(--dim);
+  opacity: 0;
+  animation: winappear 0.15s 0.3s forwards;
+}
+
+@keyframes winappear { to { opacity: 1; } }
+
+/* title bar */
+.titlebar {
+  background: linear-gradient(to right, #000080, #1084d0);
+  height: 22px;
+  display: flex; align-items: center; padding: 0 6px; gap: 5px;
+}
+.titlebar-icon {
+  width: 14px; height: 14px;
+  background: var(--panel);
+  border: 1px solid var(--dim);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; color: var(--navy); font-weight: bold;
+}
+.titlebar-title {
+  color: #fff; font-size: 11px; font-weight: bold;
+  font-family: Arial, sans-serif; flex: 1;
+}
+.titlebar-btns { display: flex; gap: 2px; }
+.tbn {
+  width: 16px; height: 14px; background: var(--panel);
+  border-top: 2px solid var(--white); border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dim); border-bottom: 2px solid var(--dim);
+  font-size: 10px; font-family: monospace; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; color: #000;
+}
+
+/* menu bar */
+.menubar {
+  background: var(--panel); height: 20px;
+  border-bottom: 1px solid var(--dim);
+  display: flex; align-items: center; padding: 0 4px;
+}
+.menu-item {
+  font-size: 11px; font-family: Arial, sans-serif;
+  padding: 2px 8px; color: #000; cursor: pointer;
+}
+.menu-item:hover { background: var(--navy); color: #fff; }
+
+/* main body */
+.body {
+  background: #1a1a2e;
+  padding: 40px 48px 48px;
+  min-height: 340px;
+  display: flex; flex-direction: column;
+  align-items: flex-start; justify-content: center;
+  position: relative; overflow: hidden;
+}
+
+/* scanlines over body only */
+.body::before {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none; z-index: 1;
+  background: repeating-linear-gradient(
+    0deg, transparent, transparent 2px,
+    rgba(0,0,0,0.12) 2px, rgba(0,0,0,0.12) 4px
+  );
+}
+
+/* grid lines */
+.body::after {
+  content: '';
+  position: absolute; inset: 0; pointer-events: none;
+  background-image:
+    linear-gradient(rgba(0,120,215,0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0,120,215,0.04) 1px, transparent 1px);
+  background-size: 32px 32px;
+}
+
+.content { position: relative; z-index: 2; width: 100%; }
+
+/* system tag */
+.sys-tag {
+  font-size: 10px; letter-spacing: 0.15em;
+  color: #5a8ab0; margin-bottom: 28px;
+  font-family: 'Courier New', monospace;
+}
+
+/* main title */
+.main-title {
+  font-family: 'Courier New', monospace;
+  font-size: clamp(32px, 6vw, 52px);
+  font-weight: bold;
+  color: #c0c0c0;
+  letter-spacing: 0.05em;
+  line-height: 1.1;
+  min-height: 1.2em;
+}
+
+.main-title .typed-text { color: #ffffff; }
+.main-title .cursor {
+  display: inline-block;
+  width: 3px; height: 0.85em;
+  background: #0078d7;
+  vertical-align: bottom;
+  margin-left: 2px;
+  animation: blink 1s step-end infinite;
+}
+@keyframes blink { 50% { opacity: 0; } }
+
+/* subtitle */
+.subtitle {
+  font-size: 12px; letter-spacing: 0.12em;
+  color: #4a7a9b; margin-top: 10px;
+  font-family: 'Courier New', monospace;
+  opacity: 0; transition: opacity 0.4s;
+  text-transform: uppercase;
+}
+.subtitle.show { opacity: 1; }
+
+/* divider */
+.divider {
+  width: 100%; height: 1px;
+  background: linear-gradient(to right, #0078d7, transparent);
+  margin: 28px 0;
+  opacity: 0; transition: opacity 0.4s;
+}
+.divider.show { opacity: 1; }
+
+/* press any key */
+.prompt-wrap {
+  display: flex; align-items: center; gap: 12px;
+  opacity: 0; transition: opacity 0.4s;
+}
+.prompt-wrap.show { opacity: 1; }
+
+.prompt-bracket {
+  font-size: 13px; color: #0078d7;
+  font-family: 'Courier New', monospace;
+  letter-spacing: 0.08em;
+  animation: pulse 2s ease-in-out infinite;
+}
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.prompt-text {
+  font-size: 13px; letter-spacing: 0.18em;
+  color: #8aabbd; font-family: 'Courier New', monospace;
+  text-transform: uppercase;
+}
+
+/* corner decoration */
+.corner-tl, .corner-br {
+  position: absolute; width: 20px; height: 20px;
+  border-color: #0078d7; border-style: solid; opacity: 0.4;
+}
+.corner-tl { top: 12px; left: 12px; border-width: 1px 0 0 1px; }
+.corner-br { bottom: 12px; right: 12px; border-width: 0 1px 1px 0; }
+
+/* version tag */
+.ver-tag {
+  position: absolute; bottom: 14px; right: 16px;
+  font-size: 10px; color: #2a4a5a; letter-spacing: 0.1em;
+  font-family: 'Courier New', monospace;
+  z-index: 2;
+}
+
+/* status bar */
+.statusbar {
+  background: var(--panel); height: 20px;
+  border-top: 2px solid var(--white);
+  display: flex; align-items: center; padding: 0 6px; gap: 8px;
+}
+.status-panel {
+  border-top: 2px solid var(--dim); border-left: 2px solid var(--dim);
+  border-right: 2px solid var(--white); border-bottom: 2px solid var(--white);
+  padding: 0 6px; font-size: 10px; font-family: Arial, sans-serif;
+  color: #444; flex: 1; height: 14px; display: flex; align-items: center;
+}
+.status-right {
+  font-size: 10px; font-family: Arial, sans-serif; color: var(--dim);
+}
+
+/* entry flash */
+.flash-overlay {
+  position: fixed; inset: 0; background: #ffffff;
+  opacity: 0; pointer-events: none; z-index: 9999;
+  transition: opacity 0.08s;
+}
+.flash-overlay.flash { opacity: 0.6; }
+
+/* taskbar */
+.taskbar {
+  position: fixed; bottom: 0; left: 0; right: 0;
+  height: 28px; background: var(--panel);
+  border-top: 2px solid var(--white);
+  display: flex; align-items: center; padding: 0 4px; gap: 4px;
+  z-index: 100;
+}
+.start-btn {
+  height: 20px; padding: 0 8px;
+  background: var(--panel);
+  border-top: 2px solid var(--white); border-left: 2px solid var(--white);
+  border-right: 2px solid var(--dim); border-bottom: 2px solid var(--dim);
+  font-size: 11px; font-family: Arial, sans-serif; font-weight: bold;
+  cursor: pointer; display: flex; align-items: center; gap: 4px;
+}
+.start-flag {
+  width: 12px; height: 12px;
+  display: grid; grid-template-columns: 1fr 1fr; gap: 1px;
+}
+.flag-q { width: 100%; height: 100%; }
+.taskbar-sep { width: 1px; height: 20px; background: var(--dim); margin: 0 2px; }
+.taskbar-app {
+  height: 20px; padding: 0 8px;
+  background: var(--panel);
+  border-top: 2px solid var(--dim); border-left: 2px solid var(--dim);
+  border-right: 2px solid var(--white); border-bottom: 2px solid var(--white);
+  font-size: 11px; font-family: Arial, sans-serif; cursor: pointer;
+  display: flex; align-items: center; gap: 4px;
+}
+.tray {
+  margin-left: auto;
+  border-top: 2px solid var(--dim); border-left: 2px solid var(--dim);
+  border-right: 2px solid var(--white); border-bottom: 2px solid var(--white);
+  padding: 0 8px; height: 18px; display: flex; align-items: center;
+  font-size: 11px; font-family: 'Courier New', monospace; color: #000;
+}
+</style>
+</head>
+<body>
+
+<div class="flash-overlay" id="flash"></div>
+
+<!-- WINDOW -->
+<div class="window">
+
+  <div class="titlebar">
+    <div class="titlebar-icon">O</div>
+    <div class="titlebar-title">OPTS// Position Probability Engine</div>
+    <div class="titlebar-btns">
+      <div class="tbn">_</div>
+      <div class="tbn">&#9633;</div>
+      <div class="tbn">&#215;</div>
+    </div>
+  </div>
+
+  <div class="menubar">
+    <span class="menu-item">File</span>
+    <span class="menu-item">View</span>
+    <span class="menu-item">Tools</span>
+    <span class="menu-item">Help</span>
+  </div>
+
+  <div class="body">
+    <div class="corner-tl"></div>
+    <div class="corner-br"></div>
+
+    <div class="content">
+      <div class="sys-tag" id="sys-tag">C:\OPTS\&gt; run probability_engine.exe</div>
+
+      <div class="main-title">
+        <span class="typed-text" id="typed"></span><span class="cursor" id="cursor"></span>
+      </div>
+
+      <div class="subtitle" id="subtitle">Options · Probability · Expected Value</div>
+
+      <div class="divider" id="divider"></div>
+
+      <div class="prompt-wrap" id="prompt">
+        <span class="prompt-bracket">[</span>
+        <span class="prompt-text">Press any key to enter</span>
+        <span class="prompt-bracket">]</span>
+      </div>
+    </div>
+
+    <div class="ver-tag">BS v2.1 // BUILD 2026</div>
+  </div>
+
+  <div class="statusbar">
+    <div class="status-panel" id="status-panel">Initializing...</div>
+    <div class="status-right" id="clock-bar">--:--</div>
+  </div>
+
+</div>
+
+<!-- TASKBAR -->
+<div class="taskbar">
+  <div class="start-btn">
+    <div class="start-flag">
+      <div class="flag-q" style="background:#cc0000;"></div>
+      <div class="flag-q" style="background:#008000;"></div>
+      <div class="flag-q" style="background:#0000cc;"></div>
+      <div class="flag-q" style="background:#cccc00;"></div>
+    </div>
+    Start
+  </div>
+  <div class="taskbar-sep"></div>
+  <div class="taskbar-app">&#9632; OPTS// Engine</div>
+  <div class="tray" id="clock-tray">--:--</div>
+</div>
+
+<script>
+  const TITLE = 'OPTS//';
+  const SUBTITLE_TEXT = 'Position Probability Engine';
+  const FULL_TEXT = TITLE + '\n' + SUBTITLE_TEXT;
+
+  const typedEl = document.getElementById('typed');
+  const cursorEl = document.getElementById('cursor');
+  const subtitleEl = document.getElementById('subtitle');
+  const dividerEl = document.getElementById('divider');
+  const promptEl = document.getElementById('prompt');
+  const statusEl = document.getElementById('status-panel');
+  const flashEl = document.getElementById('flash');
+
+  // clock
+  function updateClock() {
+    const now = new Date();
+    const t = String(now.getHours()).padStart(2,'0') + ':' + String(now.getMinutes()).padStart(2,'0');
+    document.getElementById('clock-bar').textContent = t;
+    document.getElementById('clock-tray').textContent = t;
+  }
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  // typing sequence
+  let ready = false;
+
+  function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+  async function typeSequence() {
+    await sleep(600);
+    statusEl.textContent = 'Loading OPTS// engine...';
+
+    // type OPTS//
+    for (let i = 0; i < TITLE.length; i++) {
+      typedEl.textContent += TITLE[i];
+      await sleep(i === 4 ? 80 : 120);
+    }
+
+    await sleep(300);
+
+    // show subtitle line
+    subtitleEl.classList.add('show');
+    await sleep(200);
+
+    // show divider
+    dividerEl.classList.add('show');
+    await sleep(300);
+
+    // show prompt
+    promptEl.classList.add('show');
+
+    // remove cursor
+    cursorEl.style.display = 'none';
+
+    statusEl.textContent = 'Ready — press any key or click to launch';
+    ready = true;
+  }
+
+  typeSequence();
+
+  // enter on any key or click
+  function enter() {
+    if (!ready) return;
+    ready = false;
+    statusEl.textContent = 'Launching...';
+
+    // flash effect
+    flashEl.classList.add('flash');
+    setTimeout(() => {
+      window.location.href = '/calculator.html';
+    }, 120);
+  }
+
+  document.addEventListener('keydown', e => {
+    if (['Tab','CapsLock','Shift','Control','Alt','Meta'].includes(e.key)) return;
+    enter();
+  });
+
+  document.addEventListener('click', enter);
+  document.addEventListener('touchstart', enter);
+</script>
+</body>
+</html>
