@@ -1215,7 +1215,6 @@ if (mode === 'credit') {
   }
 
   // NEWS
-  const FINNHUB_KEY = 'd7eq3jhr01qi33g788lgd7eq3jhr01qi33g788m0';
   let newsCache = {};
   const NEWS_TTL = 300000;
 
@@ -1243,42 +1242,35 @@ if (mode === 'credit') {
     return cls === 'bullish' ? 'BULL' : cls === 'bearish' ? 'BEAR' : 'NEUT';
   }
 
-  async function loadInlineNews(ticker) {
-    const bodyEl = document.getElementById('inline-news-body');
-    if (!bodyEl) return;
+async function loadInlineNews(ticker) {
+  const bodyEl = document.getElementById('inline-news-body');
+  if (!bodyEl) return;
 
-    if (newsCache[ticker] && Date.now() - newsCache[ticker].ts < NEWS_TTL) {
-      renderInlineNews(newsCache[ticker].articles);
+  if (newsCache[ticker] && Date.now() - newsCache[ticker].ts < NEWS_TTL) {
+    renderInlineNews(newsCache[ticker].articles);
+    return;
+  }
+
+  bodyEl.innerHTML = '<div class="news-panel-loading">Loading news...</div>';
+
+  try {
+    const r = await fetch(`/api/news?symbol=${encodeURIComponent(ticker)}`);
+    if (!r.ok) throw new Error('API error');
+    const data = await r.json();
+    const articles = data.articles || [];
+
+    if (!articles.length) {
+      bodyEl.innerHTML = '<div class="news-panel-empty">No recent articles found</div>';
       return;
     }
 
-    bodyEl.innerHTML = '<div class="news-panel-loading">Loading news...</div>';
-
-    const today = new Date();
-    const from = new Date(today - 7 * 24 * 60 * 60 * 1000);
-    const fmt = d => d.toISOString().split('T')[0];
-
-    try {
-      const r = await fetch(
-        `https://finnhub.io/api/v1/company-news?symbol=${ticker}&from=${fmt(from)}&to=${fmt(today)}&token=${FINNHUB_KEY}`
-      );
-      if (!r.ok) throw new Error('API error');
-      const articles = await r.json();
-      const top3 = articles.filter(a => a.headline && a.url).slice(0, 3);
-
-      if (!top3.length) {
-        bodyEl.innerHTML = '<div class="news-panel-empty">No recent articles found</div>';
-        return;
-      }
-
-      newsCache[ticker] = { articles: top3, ts: Date.now() };
-      renderInlineNews(top3);
-    } catch(e) {
-      bodyEl.innerHTML = '<div class="news-panel-empty">Add Finnhub key to<br>enable news feed</div>';
-      console.error('News error:', e);
-    }
+    newsCache[ticker] = { articles, ts: Date.now() };
+    renderInlineNews(articles);
+  } catch(e) {
+    bodyEl.innerHTML = '<div class="news-panel-empty">News unavailable —<br>check back shortly</div>';
+    console.error('News error:', e);
   }
-
+}
   function renderInlineNews(articles) {
     const bodyEl = document.getElementById('inline-news-body');
     if (!bodyEl) return;
