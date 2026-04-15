@@ -1,8 +1,8 @@
 {
-  "rewrites": [
-    { "source": "/api/quote", "destination": "/api/quote.js" },
-    { "source": "/api/news", "destination": "/api/news.js" }
-  ],
+  "functions": {
+    "api/quote.js": { "memory": 256, "maxDuration": 10 },
+    "api/news.js":  { "memory": 256, "maxDuration": 10 }
+  },
   "headers": [
     {
       "source": "/(.*).html",
