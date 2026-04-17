@@ -1,0 +1,15 @@
+{
+  "name": "opts-probability-engine",
+  "version": "1.0.0",
+  "description": "OPTS// Position Probability Engine",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "express": "^4.18.2"
+  }
+}
